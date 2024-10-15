@@ -1,0 +1,67 @@
+import pandas as pd
+import re
+
+# Define file paths
+csv_path = "/content/drive/MyDrive/Colab Notebooks/HCA_1358_Paired_Line_Data_Ver.1.0_14102024 - Book(Sheet1).csv"  # Corrected path
+
+# Load the CSV data into a Pandas DataFrame (no header, single column)
+df = pd.read_csv(csv_path, header=None, names=['snippets'])
+
+# Function to check and correct the snippet format (same as before)
+def check_and_correct_snippet(snippet):
+    """
+    Checks if the snippet has the correct format (r'raw_htr': 'groundtruth') 
+    and attempts to correct common errors.
+    """
+    try:
+        # Basic check: should contain r'', ':', and ''
+        if not all(x in snippet for x in ["r'", "':'", "'"]):
+            raise ValueError("Snippet does not contain required elements.")
+
+        # Try to evaluate the snippet
+        eval(snippet)  
+        return snippet, False  # Snippet is correct
+
+    except (ValueError, SyntaxError) as e:
+        print(f"Error in snippet: {snippet} - {e}")
+        # Attempt to correct common errors:
+
+        # 1. Missing 'r' before the raw_htr string:
+        if not snippet.startswith("r'"):
+            snippet = "r'" + snippet
+
+        # 2. Missing or incorrect quotes:
+        snippet = re.sub(r"([\w\s]+): ([\w\s]+)", r"r'\1': '\2'", snippet)
+
+        try:
+            # Check if correction worked
+            eval(snippet)
+            return snippet, True  # Snippet was corrected
+        except:
+            print(f"Unable to correct snippet: {snippet}")
+            return snippet, False  # Snippet could not be corrected
+
+# Apply the check_and_correct_snippet function to each row
+corrected_snippets = df['snippets'].apply(check_and_correct_snippet)
+
+# Extract corrected snippets and error flags
+df['snippets'] = corrected_snippets.apply(lambda x: x[0])
+errors_found = any(corrected_snippets.apply(lambda x: x[1]))
+
+# Save the updated DataFrame if errors were found
+if errors_found:
+    # Extract version number and increment it
+    version_match = re.search(r"Ver\.(\d+)\.(\d+)_(\d+)", csv_path)
+    if version_match:
+        major, minor, build = map(int, version_match.groups())
+        new_version = f"Ver.{major}.{minor}_{build + 1}"
+        new_csv_path = re.sub(r"Ver\.(\d+)\.(\d+)_(\d+)", new_version, csv_path)
+        print(f"Saving corrected data to: {new_csv_path}")
+
+        # Save as a CSV file
+        df.to_csv(new_csv_path, header=False, index=False)  
+    else:
+        print("Could not determine version number. Saving as corrected_data.csv")
+        df.to_csv("corrected_data.csv", header=False, index=False)
+else:
+    print("No errors found in the snippets.")
