@@ -1,0 +1,34 @@
+from huggingface_hub import notebook_login, HfApi
+import gradio as gr
+from transformers import pipeline
+
+# Log in to Hugging Face (only if you haven't already)
+notebook_login()
+
+# Push the model to Hugging Face Hub
+api = HfApi()
+api.upload_folder(
+    folder_path="./results/checkpoint-10",  # Path to your 10-epoch model
+    repo_id="MarineLives/htr-cleaner-model",  # Replace with your desired repo ID
+    repo_type="model",
+)
+
+# Load the tokenizer and model from Hugging Face Hub
+model_id = "MarineLives/htr-cleaner-model"  # Use your repo ID here
+pipe = pipeline("text2text-generation", model=model_id)  # Simplify with pipeline
+
+# Define the prediction function for Gradio
+def predict(text):
+    cleaned_text = pipe(text)[0]["generated_text"]
+    return cleaned_text
+
+# Create the Gradio interface
+iface = gr.Interface(
+    fn=predict,
+    inputs=gr.Textbox(lines=5, placeholder="Enter raw HTR text here..."),
+    outputs="text",
+    title="HTR Text Cleaning with mT5",
+    description="Clean your raw HTR text with a fine-tuned mT5 model.",
+)
+
+iface.launch(share=True)  # Launch the interface and get a shareable link
